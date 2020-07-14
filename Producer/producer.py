@@ -58,7 +58,12 @@ def post():
             new_data = '[{"timestamp": "'+current_timestamp+'", "value": '+str(random.uniform(0.00,200.00))+'}]'
             print("POST",cities_name[j],"Data:",new_data)
             response = session_request.post('http://252.3.39.61:8041/v1/metric/' + city_id + '/measures', data = new_data, headers = {'Content-Type': 'application/json'})
-            print("Response:", response)
+            if(response.status_code == 401):
+                #the token has exiperd
+                print("ERROR: ", response.status_code,response.reason)
+                login()
+            else:
+                print("Response: ", response.status_code,response.reason)
             j = j+1
         #sleep in order to don't flood the network
         sleep(5)

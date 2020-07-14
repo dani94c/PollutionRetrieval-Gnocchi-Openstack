@@ -46,8 +46,8 @@ def retrieve_metrics():
     if(response.status_code == 200):
         metrics_list = json.loads(response.text)
     else:
-        print("ERROR: ", response.status_code)
-        return
+        print("ERROR: ", response.status_code,response.reason)
+        exit()
 
 '''
 def getAllMetrics():
@@ -91,11 +91,15 @@ def get_stat_italy(agg_operation):
         for item in items["measures"]["aggregated"]:
             print("Time",datetime.datetime.strptime(item[0],"%Y-%m-%dT%H:%M:%S+00:00"),"Pollution",agg_operation,"level:",item[2])    
     else:
-        print("ERROR: ", response.status_code)
+        print("ERROR: ", response.status_code,response.reason)
+        if(response.status_code == 401):
+            #the token has exiperd
+            print("Try Again")
+            logged = False
 
 #aggregate the specified metric according to the specified stat. Print all the metric's values with timestamp and the corresponding value
 def get_all_stat_city(name_city, stat):
-    global metrics_list
+    global metrics_list, logged
     if(logged == False):
         print("Authentication failed. Retry login")
         login()
@@ -108,11 +112,15 @@ def get_all_stat_city(name_city, stat):
                     print("Time:",item[0],"Pollution",stat,"level:",item[2])
                 return
             else:
-                print("ERROR: ", response.status_code)
+                print("ERROR: ", response.status_code,response.reason)
+                if(response.status_code == 401):
+                    #the token has exiperd
+                    print("Try Again")
+                    logged = False
 
 #aggregate the specified metric according to the specified stat. Print the global minimum/maximum/mean among the minimum/maximum/mean values
 def get_stat_city(name_city, stat):
-    global metrics_list
+    global metrics_list, logged
     if(logged == False):
         print("Authentication failed. Retry login")
         login()
@@ -131,7 +139,11 @@ def get_stat_city(name_city, stat):
                     print("The mean value is:",np.mean(values))
                 return
             else:
-                print("ERROR: ", response.status_code)
+                print("ERROR: ", response.status_code,response.reason)
+                if(response.status_code == 401):
+                    #the token has exiperd
+                    print("Try Again")
+                    logged = False
 
 def help():
     print("The available commands are: \n  \

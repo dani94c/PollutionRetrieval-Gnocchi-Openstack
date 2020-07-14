@@ -53,98 +53,104 @@ def retrieve_metrics():
         metrics_list = json.loads(response.text)
     return response.status_code
 
-
-
 # -------- Get-Post functions implementation --------
 
 #Print all the cities (metrics) inserted in the Gnocchi DB
 @app.route('/v1/cities', methods=['GET'])
 def get_all_cities():
-    global metrics_list, cities_names
-    status_code = retrieve_metrics()
-    if(status_code == 200):
-        cities_names.clear()
-        for metric in metrics_list:
-            cities_names.append(metric['name'])
-        return jsonify(cities_names)
-    else:
-        return jsonify("ERROR"), status_code
+    global cities_names
+    if(logged == False):
+        print("Authentication failed. Retry login")
+        login()
+    cities_names.clear()
+    for metric in metrics_list:
+        cities_names.append(metric['name'])
+    return jsonify(cities_names)
 
 #Get the min/max/mean value among all the values of different cities per hour, for the pollution level in Italy
 @app.route('/v1/italy/<agg_operation>', methods=['GET'])   
 def get_stat_italy(agg_operation):
-    status_code = retrieve_metrics()
-    if(status_code == 200):
-        agg_data = ''
-        for metric in metrics_list:
-            agg_data = agg_data + '('+metric['id']+' '+agg_operation+')'
-        #the query has a format like {{"operations":"(aggregate 'min' (metric ( metric__id_1 min) ( metric_id_2 min) ( metric_id_3 min)))"}}
-        #for each metric aggregates using the specified statistic then for each hour aggregate the values among all the metrics for the specified statistic
-        query = '{"operations":"(aggregate '+agg_operation+' (metric '+agg_data+'))"}'
-        response = session_request.post('http://252.3.39.61:8041/v1/aggregates/',data=query, headers = {'Content-Type': 'application/json'})
-        if(response.status_code == 200):
-            items = json.loads(response.text)
-            #response has the format {"measures": {"aggregated":[ [item1],[item2], ..... ]}}
-            result = []
-            for item in items["measures"]["aggregated"]:
-                data = { "Time" : datetime.datetime.strptime(item[0],"%Y-%m-%dT%H:%M:%S+00:00"),'"Pollution ' + agg_operation + ' level"' : item[2]}   
-                result.append(data)
-            return jsonify(result)
-        else:
-            return jsonify(response.reason), response.status_code
+    global logged
+    if(logged == False):
+        print("Authentication failed. Retry login")
+        login()
+    agg_data = ''
+    for metric in metrics_list:
+        agg_data = agg_data + '('+metric['id']+' '+agg_operation+')'
+    #the query has a format like {{"operations":"(aggregate 'min' (metric ( metric__id_1 min) ( metric_id_2 min) ( metric_id_3 min)))"}}
+    #for each metric aggregates using the specified statistic then for each hour aggregate the values among all the metrics for the specified statistic
+    query = '{"operations":"(aggregate '+agg_operation+' (metric '+agg_data+'))"}'
+    response = session_request.post('http://252.3.39.61:8041/v1/aggregates/',data=query, headers = {'Content-Type': 'application/json'})
+    if(response.status_code == 200):
+        items = json.loads(response.text)
+        #response has the format {"measures": {"aggregated":[ [item1],[item2], ..... ]}}
+        result = []
+        for item in items["measures"]["aggregated"]:
+            data = { "Time" : datetime.datetime.strptime(item[0],"%Y-%m-%dT%H:%M:%S+00:00"),'"Pollution ' + agg_operation + ' level"' : item[2]}   
+            result.append(data)
+        return jsonify(result)
     else:
-        return jsonify("ERROR"), status_code
+        if(response.status_code == 401):
+            #the token has exiperd
+            logged = False
+        return jsonify(response.status_code,response.reason," Try Again"), response.status_code
 
 #Get a timeline for the specified statistics for the pollution level in the given city
 #Aggregate the specified metric according to the specified stat. Print all the metric's values with timestamp and the corresponding value
 @app.route('/v1/timeline/<name_city>/<stat>', methods=['GET'])
 def get_all_stat_city(name_city, stat):
-    global metrics_list
+    global logged
+    if(logged == False):
+        print("Authentication failed. Retry login")
+        login()
     if(stat == 'min' or stat == 'max' or stat == 'mean'):
-        status_code = retrieve_metrics()
-        if(status_code == 200):
-            for metric in metrics_list:
-                if(metric['name'] == name_city):
-                    response = session_request.get('http://252.3.39.61:8041/v1/metric/'+metric['id']+'/measures?aggregation='+stat+'&refresh=true')
-                    if(response.status_code == 200):
-                        items = json.loads(response.text)
-                        result = []
-                        for item in items:  
-                            data = {"Time" : item[0], '"Pollution ' + stat + ' level"' : item[2]}
-                            result.append(data)
-                        return jsonify(result)
-                    else:
-                        return jsonify(response.reason), response.status_code
-        else:
-            return jsonify("ERROR"), status_code
-    return jsonify("ERROR: INCORRECT URL"), 400
+        for metric in metrics_list:
+            if(metric['name'] == name_city):
+                response = session_request.get('http://252.3.39.61:8041/v1/metric/'+metric['id']+'/measures?aggregation='+stat+'&refresh=true')
+                if(response.status_code == 200):
+                    items = json.loads(response.text)
+                    result = []
+                    for item in items:  
+                        data = {"Time" : item[0], '"Pollution ' + stat + ' level"' : item[2]}
+                        result.append(data)
+                    return jsonify(result)
+                else:
+                    if(response.status_code == 401):
+                        #the token has exiperd
+                        logged = False
+                    return jsonify(response.status_code,response.reason," Try Again"), response.status_code
+    return jsonify("ERROR 400: BAD REQUEST"), 400
 
 #Aggregate the specified metric according to the specified stat. Print the global minimum/maximum/mean among the minimum/maximum/mean values
 @app.route('/v1/<name_city>/<stat>', methods=['GET'])
 def get_stat_city(name_city, stat):
-    global metrics_list
+    global logged
+    if(logged == False):
+        print("Authentication failed. Retry login")
+        login()
     if(stat == 'min' or stat == 'max' or stat == 'mean'):
-        status_code = retrieve_metrics()
-        if(status_code == 200):
-            for metric in metrics_list:
-                if(metric['name'] == name_city):
-                    response = session_request.get('http://252.3.39.61:8041/v1/metric/'+metric['id']+'/measures?aggregation='+stat+'&refresh=true')
-                    if(response.status_code == 200):
-                        items = json.loads(response.text)
-                        #take the min/max/avg among the elements in the list
-                        values = np.array([item[2] for item in items])
-                        if(stat == "min"):
-                            return jsonify({"Pollution min level" : np.min(values)})
-                        elif(stat == "max"):
-                            return jsonify({"Pollution max level" : np.max(values)})
-                        elif(stat == "mean"):
-                            return jsonify({"Pollution mean level" : np.mean(values)})
-                    else:
-                        return jsonify(response.reason), response.status_code
-        else:
-            return jsonify("ERROR", status_code)
-    return jsonify("ERROR: INCORRECT URL"), 400
+        for metric in metrics_list:
+            if(metric['name'] == name_city):
+                response = session_request.get('http://252.3.39.61:8041/v1/metric/'+metric['id']+'/measures?aggregation='+stat+'&refresh=true')
+                if(response.status_code == 200):
+                    items = json.loads(response.text)
+                    #take the min/max/avg among the elements in the list
+                    values = np.array([item[2] for item in items])
+                    if(stat == "min"):
+                        return jsonify({"Pollution min level" : np.min(values)})
+                    elif(stat == "max"):
+                        return jsonify({"Pollution max level" : np.max(values)})
+                    elif(stat == "mean"):
+                        return jsonify({"Pollution mean level" : np.mean(values)})
+                else:
+                    if(response.status_code == 401):
+                        #the token has exiperd
+                        logged = False
+                    return jsonify(response.status_code,response.reason," Try Again"), response.status_code
+    return jsonify("ERROR 400: BAD REQUEST"), 400
     
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8080)
+    login()
+    if(retrieve_metrics() == 200):
+        app.run(host='0.0.0.0', port=8080)
