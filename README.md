@@ -18,4 +18,4 @@ docker run -p 8080:8080 -it server-flask
 ```
 
 ## Credits
-D. Comola, E. Petrangeli, G. Alvaro, L. Fontanelli
+This project has been developed by D. Comola, E. Petrangeli, G. Alvaro, L. Fontanelli as part of the Cloud Computing course for the MSc in Computer Engineering @ Univerisity of Pisa in 2020.
